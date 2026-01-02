@@ -1,0 +1,7 @@
+{
+  "name": "Inizio",
+  "description": "A creative-engine for early-stage builders. Turns fuzzy ideas into validated product blueprints using a velvet midnight aesthetic.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
