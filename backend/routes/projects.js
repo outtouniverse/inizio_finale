@@ -111,6 +111,9 @@ router.get('/stats', authenticateToken, apiLimiter, async (req, res) => {
  */
 router.post('/', authenticateToken, apiLimiter, validateProjectCreate, async (req, res) => {
   try {
+    console.log('Received project creation request:', req.body);
+    console.log('User:', req.user._id);
+
     const {
       name,
       pitch,
@@ -121,6 +124,19 @@ router.post('/', authenticateToken, apiLimiter, validateProjectCreate, async (re
       tags = [],
       revenue = '$0'
     } = req.body;
+
+    // Validate required fields
+    if (!name || !pitch || !industry) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: [
+          !name && 'Project name is required',
+          !pitch && 'Project pitch is required',
+          !industry && 'Project industry is required'
+        ].filter(Boolean)
+      });
+    }
 
     const project = new Project({
       userId: req.user._id,

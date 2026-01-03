@@ -5,7 +5,7 @@
 
 import { Project, IdeaContext } from '../types';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+const API_BASE_URL = (import.meta as any).env.VITE_API_URL || 'http://localhost:5000/api/v1';
 
 export interface ProjectResponse {
   success: boolean;
@@ -86,15 +86,37 @@ class ProjectService {
    */
   async createProject(ideaContext: IdeaContext): Promise<Project> {
     try {
-      const projectData = {
-        name: `Untitled ${ideaContext.industry || 'Project'}`,
-        pitch: ideaContext.description,
-        industry: ideaContext.industry,
-        stage: ideaContext.stage,
-        userGoal: ideaContext.userGoal,
-        constraints: ideaContext.constraints,
-        tags: [ideaContext.industry || 'General'],
+      // Validate required fields before sending
+      if (!ideaContext.description || ideaContext.description.trim().length === 0) {
+        throw new Error('Project description is required');
+      }
+
+      if (!ideaContext.industry) {
+        throw new Error('Project industry is required');
+      }
+
+      // Map FounderStage to Project stage
+      const stageMapping: Record<string, string> = {
+        'IDEA_FOG': 'IDEA',
+        'VALIDATION': 'VALIDATION',
+        'NAMING': 'VALIDATION', // Map to validation as it's part of the process
+        'BUILDING': 'BUILDING',
+        'GROWTH': 'GROWTH'
       };
+
+      const mappedStage = stageMapping[ideaContext.stage] || 'IDEA';
+
+      const projectData = {
+        name: `Untitled ${ideaContext.industry} Project`,
+        pitch: ideaContext.description.trim(),
+        industry: ideaContext.industry,
+        stage: mappedStage,
+        userGoal: ideaContext.userGoal || '',
+        constraints: ideaContext.constraints || '',
+        tags: [ideaContext.industry],
+      };
+
+      console.log('Sending project data:', projectData);
 
       const response = await this.request('/projects', {
         method: 'POST',
@@ -102,9 +124,11 @@ class ProjectService {
       });
 
       if (!response.success) {
+        console.error('Backend response error:', response);
         throw new Error(response.message || 'Failed to create project');
       }
 
+      console.log('Project created successfully:', response.data?.project);
       return response.data?.project!;
     } catch (error) {
       console.error('Create project error:', error);

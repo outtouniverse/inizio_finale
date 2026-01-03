@@ -24,9 +24,15 @@ const DEFAULT_SETTINGS: AppSettings = {
 export const StorageService = {
   getProjects: (): Project[] => {
     try {
+      // Check if localStorage is available
+      if (typeof Storage === 'undefined' || !window.localStorage) {
+        console.warn('localStorage not available');
+        return MOCK_PROJECTS;
+      }
       const stored = localStorage.getItem(KEYS.PROJECTS);
       return stored ? JSON.parse(stored) : MOCK_PROJECTS;
     } catch (e) {
+      console.warn('Error accessing localStorage:', e);
       return MOCK_PROJECTS;
     }
   },
@@ -39,7 +45,7 @@ export const StorageService = {
   saveProject: (project: Project): Project[] => {
     const projects = StorageService.getProjects();
     const existingIndex = projects.findIndex(p => p.id === project.id);
-    
+
     let updatedProjects;
     if (existingIndex >= 0) {
       // Merge existing artifacts if the new object doesn't have them populated
@@ -47,13 +53,19 @@ export const StorageService = {
       updatedProjects = [...projects];
       updatedProjects[existingIndex] = {
         ...project,
-        artifacts: project.artifacts || existing.artifacts 
+        artifacts: project.artifacts || existing.artifacts
       };
     } else {
       updatedProjects = [project, ...projects];
     }
-    
-    localStorage.setItem(KEYS.PROJECTS, JSON.stringify(updatedProjects));
+
+    try {
+      if (typeof Storage !== 'undefined' && window.localStorage) {
+        localStorage.setItem(KEYS.PROJECTS, JSON.stringify(updatedProjects));
+      }
+    } catch (e) {
+      console.warn('Error saving to localStorage:', e);
+    }
     return updatedProjects;
   },
 
@@ -67,47 +79,73 @@ export const StorageService = {
       if (!project.artifacts) {
         project.artifacts = {};
       }
-      
+
       // Save data to the specific step key
       project.artifacts[step] = data;
-      
+
       // If it's a score, let's also update the top level validation score
       if (step === 'SCORE' && data.total) {
         project.validationScore = data.total;
         if (data.total > 70) project.stage = 'Validation';
       }
-      
+
       // Update timestamp
       project.lastEdited = 'Just now';
 
       projects[index] = project;
-      localStorage.setItem(KEYS.PROJECTS, JSON.stringify(projects));
+      try {
+        if (typeof Storage !== 'undefined' && window.localStorage) {
+          localStorage.setItem(KEYS.PROJECTS, JSON.stringify(projects));
+        }
+      } catch (e) {
+        console.warn('Error saving artifact to localStorage:', e);
+      }
     }
   },
 
   getProfile: (): UserProfile => {
     try {
+      if (typeof Storage === 'undefined' || !window.localStorage) {
+        return MOCK_PROFILE;
+      }
       const stored = localStorage.getItem(KEYS.PROFILE);
       return stored ? JSON.parse(stored) : MOCK_PROFILE;
     } catch (e) {
+      console.warn('Error accessing profile from localStorage:', e);
       return MOCK_PROFILE;
     }
   },
 
   saveProfile: (profile: UserProfile) => {
-    localStorage.setItem(KEYS.PROFILE, JSON.stringify(profile));
+    try {
+      if (typeof Storage !== 'undefined' && window.localStorage) {
+        localStorage.setItem(KEYS.PROFILE, JSON.stringify(profile));
+      }
+    } catch (e) {
+      console.warn('Error saving profile to localStorage:', e);
+    }
   },
 
   getSettings: (): AppSettings => {
     try {
+      if (typeof Storage === 'undefined' || !window.localStorage) {
+        return DEFAULT_SETTINGS;
+      }
       const stored = localStorage.getItem(KEYS.SETTINGS);
       return stored ? JSON.parse(stored) : DEFAULT_SETTINGS;
     } catch (e) {
+      console.warn('Error accessing settings from localStorage:', e);
       return DEFAULT_SETTINGS;
     }
   },
 
   saveSettings: (settings: AppSettings) => {
-    localStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings));
+    try {
+      if (typeof Storage !== 'undefined' && window.localStorage) {
+        localStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings));
+      }
+    } catch (e) {
+      console.warn('Error saving settings to localStorage:', e);
+    }
   }
 };

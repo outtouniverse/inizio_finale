@@ -265,12 +265,37 @@ const AppContent: React.FC = () => {
 
   const handleIdeaStart = async (context: IdeaContext) => {
     try {
+      console.log('Starting project creation with context:', context);
       const newProject = await projectService.createProject(context);
+      console.log('Project created successfully:', newProject);
+
+      // Update local projects state
       setProjects(prev => [newProject, ...prev]);
-      navigate(`/workspace/${newProject.id || newProject._id}`);
-    } catch (error) {
+
+      // Navigate to the workspace
+      const projectId = newProject.id || newProject._id;
+      navigate(`/workspace/${projectId}`);
+    } catch (error: any) {
       console.error('Error creating project:', error);
-      alert('Failed to create project. Please try again.');
+
+      // Provide specific error messages based on error type
+      let errorMessage = 'Failed to create project. Please try again.';
+
+      if (error.message) {
+        if (error.message.includes('Validation failed')) {
+          errorMessage = 'Please provide a project description and try again.';
+        } else if (error.message.includes('Network')) {
+          errorMessage = 'Network error. Please check your connection and try again.';
+        } else if (error.message.includes('401') || error.message.includes('Unauthorized')) {
+          errorMessage = 'Please log in again and try creating your project.';
+        } else if (error.message.includes('403') || error.message.includes('Forbidden')) {
+          errorMessage = 'You do not have permission to create projects.';
+        } else {
+          errorMessage = `Error: ${error.message}`;
+        }
+      }
+
+      alert(errorMessage);
     }
   };
 

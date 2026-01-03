@@ -21,6 +21,7 @@ const authRouter = require('./routes/auth');
 const usersRouter = require('./routes/users');
 const sessionsRouter = require('./routes/sessions');
 const projectsRouter = require('./routes/projects');
+const aiRouter = require('./routes/ai');
 
 const app = express();
 
@@ -89,6 +90,7 @@ app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/users', usersRouter);
 app.use('/api/v1/sessions', sessionsRouter);
 app.use('/api/v1/projects', projectsRouter);
+app.use('/api/v1/ai', aiRouter);
 
 // 404 handler for API routes
 app.use('/api/*', (req, res) => {
