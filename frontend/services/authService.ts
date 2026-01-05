@@ -15,6 +15,16 @@ export interface User {
   lastLogin?: string;
   createdAt: string;
   updatedAt: string;
+  // Extended Profile Fields
+  archetype?: string;
+  level?: number;
+  mission?: string;
+  badges?: string[];
+  traits?: { name: string; score: number }[];
+  // Activity Data
+  buildStreak?: number;
+  activityCount?: number;
+  lastActivity?: string;
 }
 
 export interface AuthResponse {
@@ -461,6 +471,58 @@ class AuthService {
       return data;
     } catch (error) {
       console.error('Revoke all sessions error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get profile statistics
+   */
+  async getProfileStats(): Promise<any> {
+    try {
+      const response = await fetch(`${this.baseURL}/users/profile/stats`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to get profile stats');
+      }
+
+      return data.data.stats;
+    } catch (error) {
+      console.error('Get profile stats error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get profile activity data
+   */
+  async getProfileActivity(): Promise<any> {
+    try {
+      const response = await fetch(`${this.baseURL}/users/profile/activity`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to get profile activity');
+      }
+
+      return data.data;
+    } catch (error) {
+      console.error('Get profile activity error:', error);
       throw error;
     }
   }

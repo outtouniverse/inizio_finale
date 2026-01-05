@@ -85,7 +85,7 @@ const IdeaVault: React.FC<Props> = ({ onSelect, onNew, projects }) => {
                            >
                               <History size={16} />
                            </button>
-                           <span className={`text-[10px] font-bold uppercase px-2 py-1.5 rounded border flex items-center ${
+                           <span className={`text-[10px] font-bold uppercase px-2 py-1.5 rounded flex items-center ${
                              project.stage === 'Validation' ? 'text-accent border-accent/20 bg-accent/10' : 
                              'text-primary border-primary/20 bg-primary/10'
                            }`}>

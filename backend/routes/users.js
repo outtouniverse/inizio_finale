@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
+const Project = require('../models/Project');
 const { authenticateToken } = require('../middleware/auth');
 const { requireOwnershipOrAdmin } = require('../middleware/roleCheck');
 const { apiLimiter } = require('../middleware/rateLimiter');
@@ -38,7 +39,17 @@ router.get('/profile', authenticateToken, apiLimiter, async (req, res) => {
           profilePicture: user.profilePicture,
           lastLogin: user.lastLogin,
           createdAt: user.createdAt,
-          updatedAt: user.updatedAt
+          updatedAt: user.updatedAt,
+          // Extended Profile Fields
+          archetype: user.archetype,
+          level: user.level,
+          mission: user.mission,
+          badges: user.badges,
+          traits: user.traits,
+          // Activity Data
+          buildStreak: user.buildStreak,
+          activityCount: user.activityCount,
+          lastActivity: user.lastActivity
         }
       }
     });
@@ -58,7 +69,14 @@ router.get('/profile', authenticateToken, apiLimiter, async (req, res) => {
  */
 router.put('/profile', authenticateToken, apiLimiter, validateProfileUpdate, async (req, res) => {
   try {
-    const { username, email } = req.body;
+    const {
+      username,
+      email,
+      archetype,
+      mission,
+      traits,
+      profilePicture
+    } = req.body;
     const userId = req.user._id;
 
     // Check if username is already taken (if updating)
@@ -83,12 +101,50 @@ router.put('/profile', authenticateToken, apiLimiter, validateProfileUpdate, asy
       }
     }
 
+    // Validate archetype if provided
+    const validArchetypes = ['Visionary Architect', 'Strategic Builder', 'Creative Innovator', 'Technical Founder', 'Market Pioneer'];
+    if (archetype && !validArchetypes.includes(archetype)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid archetype'
+      });
+    }
+
     // Update user
     const updateData = {};
+
+    // Basic fields
     if (username) updateData.username = username;
     if (email) {
       updateData.email = email.toLowerCase();
       updateData.emailVerified = false; // Require re-verification for email change
+    }
+    if (profilePicture !== undefined) updateData.profilePicture = profilePicture;
+
+    // Extended profile fields
+    if (archetype) updateData.archetype = archetype;
+    if (mission) updateData.mission = mission;
+    if (traits) {
+      // Validate traits array
+      if (!Array.isArray(traits)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Traits must be an array'
+        });
+      }
+
+      // Validate each trait
+      for (const trait of traits) {
+        if (!trait.name || typeof trait.score !== 'number' ||
+            trait.score < 0 || trait.score > 100) {
+          return res.status(400).json({
+            success: false,
+            message: 'Invalid trait data'
+          });
+        }
+      }
+
+      updateData.traits = traits;
     }
 
     const user = await User.findByIdAndUpdate(
@@ -114,7 +170,12 @@ router.put('/profile', authenticateToken, apiLimiter, validateProfileUpdate, asy
           email: user.email,
           emailVerified: user.emailVerified,
           role: user.role,
-          profilePicture: user.profilePicture
+          profilePicture: user.profilePicture,
+          archetype: user.archetype,
+          level: user.level,
+          mission: user.mission,
+          badges: user.badges,
+          traits: user.traits
         }
       }
     });
@@ -123,6 +184,228 @@ router.put('/profile', authenticateToken, apiLimiter, validateProfileUpdate, asy
     res.status(500).json({
       success: false,
       message: 'Failed to update profile'
+    });
+  }
+});
+
+/**
+ * @route   GET /api/v1/users/profile/stats
+ * @desc    Get user profile statistics
+ * @access  Private
+ */
+router.get('/profile/stats', authenticateToken, apiLimiter, async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    // Get project statistics
+    const projectStats = await Project.aggregate([
+      { $match: { userId } },
+      {
+        $group: {
+          _id: null,
+          totalProjects: { $sum: 1 },
+          validatedIdeas: {
+            $sum: {
+              $cond: [
+                { $in: ['$stage', ['Validation', 'Build']] },
+                1,
+                0
+              ]
+            }
+          },
+          totalRevenue: {
+            $sum: {
+              $convert: {
+                input: { $substr: ['$revenue', 1, -1] },
+                to: 'double',
+                onError: 0,
+                onNull: 0
+              }
+            }
+          },
+          avgValidationScore: { $avg: '$validationScore' },
+          lastActivity: { $max: '$updatedAt' }
+        }
+      }
+    ]);
+
+    // Calculate build streak (consecutive days with activity)
+    const userProjects = await Project.find({ userId })
+      .sort({ updatedAt: -1 })
+      .limit(50); // Last 50 activities
+
+    let buildStreak = 0;
+    if (userProjects.length > 0) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+
+      // Get unique activity dates (last 30 days)
+      const activityDates = new Set();
+      userProjects.forEach(project => {
+        const date = new Date(project.updatedAt);
+        date.setHours(0, 0, 0, 0);
+        const daysDiff = Math.floor((today - date) / (1000 * 60 * 60 * 24));
+        if (daysDiff <= 30) {
+          activityDates.add(date.toISOString().split('T')[0]);
+        }
+      });
+
+      // Calculate streak
+      const sortedDates = Array.from(activityDates).sort().reverse();
+      let currentDate = new Date(today);
+
+      for (const dateStr of sortedDates) {
+        const activityDate = new Date(dateStr);
+        const daysDiff = Math.floor((currentDate - activityDate) / (1000 * 60 * 60 * 24));
+
+        if (daysDiff <= 1) {
+          buildStreak++;
+          currentDate = new Date(activityDate);
+          currentDate.setDate(currentDate.getDate() - 1);
+        } else {
+          break;
+        }
+      }
+    }
+
+    // Calculate system power (based on activity and project completion)
+    const stats = projectStats[0] || {
+      totalProjects: 0,
+      validatedIdeas: 0,
+      totalRevenue: 0,
+      avgValidationScore: 0
+    };
+
+    const activityScore = Math.min(userProjects.length * 2, 40); // Max 40 points
+    const completionScore = Math.min(stats.validatedIdeas * 10, 30); // Max 30 points
+    const validationScore = Math.min((stats.avgValidationScore || 0) * 0.3, 30); // Max 30 points
+
+    const systemPower = Math.min(activityScore + completionScore + validationScore, 98);
+
+    res.json({
+      success: true,
+      data: {
+        stats: {
+          buildStreak,
+          validatedIdeas: stats.validatedIdeas || 0,
+          systemPower: Math.round(systemPower),
+          totalProjects: stats.totalProjects || 0,
+          totalRevenue: stats.totalRevenue || 0,
+          avgValidationScore: Math.round(stats.avgValidationScore || 0),
+          lastActivity: stats.lastActivity
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get profile stats error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get profile statistics'
+    });
+  }
+});
+
+/**
+ * @route   GET /api/v1/users/profile/activity
+ * @desc    Get user activity data for heatmap and timeline
+ * @access  Private
+ */
+router.get('/profile/activity', authenticateToken, apiLimiter, async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    // Get project activity for heatmap (last 365 days)
+    const oneYearAgo = new Date();
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+
+    const projectActivity = await Project.aggregate([
+      { $match: { userId, updatedAt: { $gte: oneYearAgo } } },
+      {
+        $group: {
+          _id: {
+            $dateToString: { format: '%Y-%m-%d', date: '$updatedAt' }
+          },
+          count: { $sum: 1 },
+          intensity: {
+            $sum: {
+              $cond: [
+                { $in: ['$stage', ['Validation', 'Build']] },
+                4, // High intensity for validated projects
+                2  // Medium intensity for other activity
+              ]
+            }
+          }
+        }
+      },
+      {
+        $project: {
+          date: '$_id',
+          count: 1,
+          intensity: { $min: ['$intensity', 4] }, // Cap at 4
+          _id: 0
+        }
+      },
+      { $sort: { date: 1 } }
+    ]);
+
+    // Get milestone events for timeline
+    const user = await User.findById(userId);
+    const timelineEvents = [];
+
+    // Account creation milestone
+    timelineEvents.push({
+      id: 'account_created',
+      date: user.createdAt.toISOString().split('T')[0],
+      title: 'Account Created',
+      type: 'MILESTONE',
+      description: 'Started the journey as a founder.'
+    });
+
+    // Project milestones
+    const projects = await Project.find({ userId })
+      .sort({ createdAt: 1 })
+      .limit(20);
+
+    projects.forEach((project, index) => {
+      if (index === 0) {
+        timelineEvents.push({
+          id: `first_project_${project._id}`,
+          date: project.createdAt.toISOString().split('T')[0],
+          title: 'First Project Created',
+          type: 'IDEA',
+          description: `Created "${project.name}" - ${project.pitch}`
+        });
+      }
+
+      if (project.stage === 'Validation' || project.stage === 'Build') {
+        timelineEvents.push({
+          id: `validated_${project._id}`,
+          date: project.updatedAt.toISOString().split('T')[0],
+          title: 'Project Validated',
+          type: 'EXECUTION',
+          description: `"${project.name}" reached validation stage with score ${project.validationScore}`
+        });
+      }
+    });
+
+    // Sort timeline events by date
+    timelineEvents.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    res.json({
+      success: true,
+      data: {
+        heatmap: projectActivity,
+        timeline: timelineEvents
+      }
+    });
+  } catch (error) {
+    console.error('Get profile activity error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get profile activity'
     });
   }
 });

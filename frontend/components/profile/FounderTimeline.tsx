@@ -4,8 +4,13 @@ import { TimelineEvent } from '../../types';
 import { MOCK_FOUNDER_TIMELINE_EVENTS } from '../../constants';
 import { Zap, Flag, Lightbulb, AlertTriangle } from 'lucide-react';
 
-const FounderTimeline: React.FC = () => {
+interface FounderTimelineProps {
+  timelineEvents?: TimelineEvent[];
+}
+
+const FounderTimeline: React.FC<FounderTimelineProps> = ({ timelineEvents }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const events = timelineEvents || MOCK_FOUNDER_TIMELINE_EVENTS;
 
   const getIcon = (type: string) => {
     switch (type) {
@@ -35,7 +40,7 @@ const FounderTimeline: React.FC = () => {
           {/* Connecting Line */}
           <div className="absolute top-1/2 left-0 right-0 h-[2px] bg-white/10 -translate-y-1/2 z-0"></div>
 
-          {MOCK_FOUNDER_TIMELINE_EVENTS.map((event, i) => (
+          {events.map((event, i) => (
              <div key={event.id} className="relative z-10 flex flex-col items-center group min-w-[140px] cursor-pointer">
                 {/* Date Bubble */}
                 <div className="mb-4 opacity-50 group-hover:opacity-100 transition-opacity text-[10px] font-mono text-text-muted bg-black/50 px-2 py-1 rounded-full border border-white/10">

@@ -54,6 +54,9 @@ router.post('/signup', authLimiter, validateSignup, async (req, res) => {
       role: 'user'
     });
 
+    // Initialize profile data
+    user.initializeProfile();
+
     // Generate email verification token
     const verificationToken = user.createEmailVerificationToken();
     await user.save();

@@ -1,10 +1,15 @@
 
 import React from 'react';
-import { MOCK_EXECUTION_HEATMAP_DATA } from '../../constants';
+import { MOCK_EXECUTION_HEATMAP_DATA, HeatmapDay } from '../../constants';
 
-const ExecutionHeatmap: React.FC = () => {
+interface ExecutionHeatmapProps {
+  heatmapData?: HeatmapDay[];
+}
+
+const ExecutionHeatmap: React.FC<ExecutionHeatmapProps> = ({ heatmapData }) => {
+  const data = heatmapData || MOCK_EXECUTION_HEATMAP_DATA;
   // We'll display the last 5 months approx (20 weeks) for compactness
-  const displayData = MOCK_EXECUTION_HEATMAP_DATA.slice(-140); 
+  const displayData = data.slice(-140); 
 
   const getColor = (intensity: number) => {
     switch(intensity) {
@@ -48,16 +53,22 @@ const ExecutionHeatmap: React.FC = () => {
        
        <div className="mt-6 flex gap-8">
           <div>
-             <span className="block text-2xl font-bold text-white">12</span>
-             <span className="text-[10px] text-text-muted uppercase tracking-wider">Day Streak</span>
-          </div>
-          <div>
-             <span className="block text-2xl font-bold text-white">1,420</span>
+             <span className="block text-2xl font-bold text-white">
+               {heatmapData ? displayData.reduce((sum, day) => sum + day.count, 0) : 1420}
+             </span>
              <span className="text-[10px] text-text-muted uppercase tracking-wider">Total Actions</span>
           </div>
           <div>
-             <span className="block text-2xl font-bold text-primary">Top 5%</span>
-             <span className="text-[10px] text-text-muted uppercase tracking-wider">Ranking</span>
+             <span className="block text-2xl font-bold text-white">
+               {displayData.filter(day => day.intensity > 0).length}
+             </span>
+             <span className="text-[10px] text-text-muted uppercase tracking-wider">Active Days</span>
+          </div>
+          <div>
+             <span className="block text-2xl font-bold text-primary">
+               {heatmapData ? `${Math.round((displayData.filter(day => day.intensity > 0).length / displayData.length) * 100)}%` : 'Top 5%'}
+             </span>
+             <span className="text-[10px] text-text-muted uppercase tracking-wider">Activity Rate</span>
           </div>
        </div>
     </div>

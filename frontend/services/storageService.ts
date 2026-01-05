@@ -2,6 +2,7 @@
 
 import { Project, UserProfile, AppSettings, AgentStep } from '../types';
 import { MOCK_PROJECTS, MOCK_PROFILE } from '../constants';
+import { authService } from './authService';
 
 const KEYS = {
   PROJECTS: 'inizio_projects',
@@ -146,6 +147,43 @@ export const StorageService = {
       }
     } catch (e) {
       console.warn('Error saving settings to localStorage:', e);
+    }
+  },
+
+  // Sync profile data with backend
+  syncProfileToBackend: async (profile: UserProfile) => {
+    try {
+      await authService.updateProfile({
+        archetype: profile.archetype,
+        mission: profile.mission,
+        traits: profile.traits
+      });
+    } catch (error) {
+      console.warn('Failed to sync profile to backend:', error);
+      throw error;
+    }
+  },
+
+  // Get profile from backend and cache locally
+  getProfileFromBackend: async (): Promise<UserProfile> => {
+    try {
+      const userData = await authService.getProfile();
+      const profile: UserProfile = {
+        name: userData.username,
+        archetype: userData.archetype || 'Visionary Architect',
+        level: userData.level || 1,
+        mission: userData.mission || '',
+        badges: userData.badges || [],
+        traits: userData.traits || [],
+        profilePicture: userData.profilePicture
+      };
+
+      // Cache locally
+      StorageService.saveProfile(profile);
+      return profile;
+    } catch (error) {
+      console.warn('Failed to get profile from backend, using localStorage:', error);
+      return StorageService.getProfile();
     }
   }
 };

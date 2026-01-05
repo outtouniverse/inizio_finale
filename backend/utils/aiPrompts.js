@@ -339,6 +339,25 @@ const generatePromptForStep = (step, context) => {
         ]
       `;
 
+    case 'SCORE':
+      return `${basePrompt}
+        Task: Provide a comprehensive score and assessment of this idea's viability.
+
+        JSON Schema:
+        {
+          "overallScore": number (0-100),
+          "marketScore": number (0-100),
+          "productScore": number (0-100),
+          "teamScore": number (0-100),
+          "executionScore": number (0-100),
+          "riskScore": number (0-100),
+          "verdict": "1-sentence assessment",
+          "keyStrengths": ["Strength 1", "Strength 2"],
+          "criticalGaps": ["Gap 1", "Gap 2"],
+          "recommendation": "Next action to improve score"
+        }
+      `;
+
     default:
       throw new Error(`Unknown step: ${step}`);
   }

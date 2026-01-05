@@ -389,6 +389,7 @@ export interface UserProfile {
   mission: string;
   badges: string[];
   traits?: { name: string; score: number }[];
+  profilePicture?: string;
 }
 
 export interface AppSettings {

@@ -23,14 +23,15 @@ passport.deserializeUser(async (id, done) => {
   }
 });
 
-// Google OAuth Strategy
-passport.use(
-  new GoogleStrategy(
-    {
-      clientID: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: process.env.GOOGLE_CALLBACK_URL,
-    },
+// Google OAuth Strategy - Only initialize if credentials are provided
+if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_CALLBACK_URL) {
+  passport.use(
+    new GoogleStrategy(
+      {
+        clientID: process.env.GOOGLE_CLIENT_ID,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+        callbackURL: process.env.GOOGLE_CALLBACK_URL,
+      },
     async (accessToken, refreshToken, profile, done) => {
       try {
         // Check if user already exists with this Google ID
@@ -67,6 +68,9 @@ passport.use(
           role: 'user',
         });
 
+        // Initialize profile data
+        user.initializeProfile();
+
         await user.save();
         return done(null, user);
 
@@ -77,5 +81,8 @@ passport.use(
     }
   )
 );
+} else {
+  console.log('Google OAuth not configured - skipping Google authentication setup');
+}
 
 module.exports = passport;

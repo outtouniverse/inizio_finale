@@ -35,11 +35,13 @@ const runAgent = async (req, res) => {
       if (['ROADMAP', 'MVP', 'DECK', 'RISK'].includes(step)) {
         result = cleanAndParseArray(response);
       }
+      // SCORE returns an object, not an array
     } catch (parseError) {
-      console.error('JSON parse error:', parseError);
+      console.error('JSON parse error:', parseError, 'Response preview:', response.substring(0, 200));
       return res.status(500).json({
         success: false,
-        message: 'AI response parsing failed'
+        message: 'AI response parsing failed',
+        error: process.env.NODE_ENV === 'development' ? parseError.message : undefined
       });
     }
 

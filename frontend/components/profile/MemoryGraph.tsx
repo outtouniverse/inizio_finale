@@ -1,11 +1,112 @@
 
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { MemoryNode } from '../../types';
+import { MemoryNode, UserProfile, Project } from '../../types';
 import { MOCK_MEMORY_GRAPH_NODES } from '../../constants';
 
-const MemoryGraph: React.FC = () => {
-  const [nodes, setNodes] = useState<MemoryNode[]>(MOCK_MEMORY_GRAPH_NODES);
+interface MemoryGraphProps {
+  profile?: UserProfile;
+  projects?: Project[];
+}
+
+const MemoryGraph: React.FC<MemoryGraphProps> = ({ profile, projects = [] }) => {
+  const [nodes, setNodes] = useState<MemoryNode[]>([]);
+
+  // Generate dynamic nodes based on user data
+  useEffect(() => {
+    if (!profile) {
+      setNodes(MOCK_MEMORY_GRAPH_NODES);
+      return;
+    }
+
+    const dynamicNodes: MemoryNode[] = [];
+
+    // Add archetype as central trait
+    dynamicNodes.push({
+      id: 'archetype',
+      label: profile.archetype || 'Visionary Architect',
+      type: 'TRAIT',
+      value: profile.level || 1,
+      x: 50,
+      y: 50,
+      connections: []
+    });
+
+    // Add traits from profile
+    if (profile.traits) {
+      profile.traits.forEach((trait, index) => {
+        const angle = (index / profile.traits!.length) * 2 * Math.PI;
+        const radius = 30;
+        const x = 50 + Math.cos(angle) * radius;
+        const y = 50 + Math.sin(angle) * radius;
+
+        dynamicNodes.push({
+          id: `trait_${trait.name.toLowerCase()}`,
+          label: trait.name,
+          type: trait.score > 70 ? 'STRENGTH' : trait.score > 40 ? 'INTEREST' : 'WEAKNESS',
+          value: trait.score,
+          x,
+          y,
+          connections: ['archetype']
+        });
+
+        // Connect to archetype
+        const archetypeNode = dynamicNodes.find(n => n.id === 'archetype');
+        if (archetypeNode) {
+          archetypeNode.connections.push(`trait_${trait.name.toLowerCase()}`);
+        }
+      });
+    }
+
+    // Add project insights
+    const validatedProjects = projects.filter(p => p.stage === 'Validation' || p.stage === 'Build');
+    if (validatedProjects.length > 0) {
+      dynamicNodes.push({
+        id: 'validation_strength',
+        label: 'Validation',
+        type: 'STRENGTH',
+        value: Math.min(validatedProjects.length * 20, 100),
+        x: 70,
+        y: 30,
+        connections: ['archetype']
+      });
+
+      // Connect archetype to validation
+      const archetypeNode = dynamicNodes.find(n => n.id === 'archetype');
+      if (archetypeNode) {
+        archetypeNode.connections.push('validation_strength');
+      }
+    }
+
+    // Add industry focus
+    const industries = [...new Set(projects.map(p => p.industry).filter(Boolean))];
+    if (industries.length > 0) {
+      industries.forEach((industry, index) => {
+        const angle = (index / industries.length) * 2 * Math.PI;
+        const radius = 40;
+        const x = 50 + Math.cos(angle + Math.PI) * radius; // Opposite side
+        const y = 50 + Math.sin(angle + Math.PI) * radius;
+
+        dynamicNodes.push({
+          id: `industry_${industry.toLowerCase()}`,
+          label: industry,
+          type: 'INTEREST',
+          value: 60 + Math.random() * 20, // Random interest level
+          x,
+          y,
+          connections: ['archetype']
+        });
+
+        // Connect archetype to industry
+        const archetypeNode = dynamicNodes.find(n => n.id === 'archetype');
+        if (archetypeNode) {
+          archetypeNode.connections.push(`industry_${industry.toLowerCase()}`);
+        }
+      });
+    }
+
+    setNodes(dynamicNodes);
+  }, [profile, projects]);
 
   // Simple physics simulation for drifting nodes
   useEffect(() => {

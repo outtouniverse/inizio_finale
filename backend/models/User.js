@@ -59,6 +59,50 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: true,
   },
+  // Extended Profile Fields
+  archetype: {
+    type: String,
+    default: 'Visionary Architect',
+    enum: ['Visionary Architect', 'Strategic Builder', 'Creative Innovator', 'Technical Founder', 'Market Pioneer'],
+  },
+  level: {
+    type: Number,
+    default: 1,
+    min: 1,
+    max: 100,
+  },
+  mission: {
+    type: String,
+    default: 'Building the future.',
+    maxlength: [200, 'Mission cannot exceed 200 characters'],
+  },
+  badges: [{
+    type: String,
+    maxlength: [50, 'Badge name cannot exceed 50 characters'],
+  }],
+  traits: [{
+    name: {
+      type: String,
+      required: true,
+      maxlength: [30, 'Trait name cannot exceed 30 characters'],
+    },
+    score: {
+      type: Number,
+      required: true,
+      min: 0,
+      max: 100,
+    },
+  }],
+  // Activity Tracking
+  buildStreak: {
+    type: Number,
+    default: 0,
+  },
+  lastActivity: Date,
+  activityCount: {
+    type: Number,
+    default: 0,
+  },
 }, {
   timestamps: true,
 });
@@ -122,6 +166,39 @@ userSchema.statics.findByEmailOrUsername = function(identifier) {
       { username: identifier }
     ]
   });
+};
+
+// Instance method to initialize profile data
+userSchema.methods.initializeProfile = function() {
+  // Set default archetype based on user creation time (for variety)
+  const archetypes = ['Visionary Architect', 'Strategic Builder', 'Creative Innovator', 'Technical Founder', 'Market Pioneer'];
+  const archetypeIndex = Math.floor(Math.random() * archetypes.length);
+  this.archetype = archetypes[archetypeIndex];
+
+  // Set default level
+  this.level = 1;
+
+  // Set default mission
+  this.mission = 'Building something amazing.';
+
+  // Set default badges
+  this.badges = ['First Steps'];
+
+  // Set default traits with random scores
+  this.traits = [
+    { name: 'Vision', score: Math.floor(Math.random() * 40) + 60 }, // 60-100
+    { name: 'Execution', score: Math.floor(Math.random() * 40) + 40 }, // 40-80
+    { name: 'Resilience', score: Math.floor(Math.random() * 30) + 50 }, // 50-80
+    { name: 'Creativity', score: Math.floor(Math.random() * 40) + 50 }, // 50-90
+    { name: 'Technical', score: Math.floor(Math.random() * 50) + 30 }, // 30-80
+  ];
+
+  // Set initial activity tracking
+  this.buildStreak = 0;
+  this.activityCount = 0;
+  this.lastActivity = new Date();
+
+  return this;
 };
 
 // Remove sensitive data when converting to JSON
