@@ -283,6 +283,68 @@ router.put('/:id', authenticateToken, apiLimiter, validateProjectUpdate, async (
 });
 
 /**
+ * @route   PUT /api/v1/projects/:id/artifact
+ * @desc    Save artifact/step result to project
+ * @access  Private
+ */
+router.put('/:id/artifact', authenticateToken, apiLimiter, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { step, data } = req.body;
+
+    if (!step || data === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: 'Step and data are required'
+      });
+    }
+
+    const project = await Project.findOne({ _id: id, userId: req.user._id });
+
+    if (!project) {
+      return res.status(404).json({
+        success: false,
+        message: 'Project not found'
+      });
+    }
+
+    // Initialize metadata if it doesn't exist
+    if (!project.metadata) {
+      project.metadata = {};
+    }
+
+    // Save the artifact data
+    project.metadata[step] = data;
+    project.lastEdited = new Date();
+
+    await project.save();
+
+    res.json({
+      success: true,
+      data: {
+        project
+      },
+      message: 'Project artifact saved successfully'
+    });
+  } catch (error) {
+    console.error('Save project artifact error:', error);
+
+    if (error.name === 'CastError') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid project ID'
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to save project artifact',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+/**
  * @route   DELETE /api/v1/projects/:id
  * @desc    Delete a project
  * @access  Private

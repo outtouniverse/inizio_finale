@@ -3,6 +3,8 @@
 import { Project, UserProfile, AppSettings, AgentStep } from '../types';
 import { MOCK_PROJECTS, MOCK_PROFILE } from '../constants';
 import { authService } from './authService';
+import { settingsService } from './settingsService';
+import { projectService } from './projectService';
 
 const KEYS = {
   PROJECTS: 'inizio_projects',
@@ -23,130 +25,50 @@ const DEFAULT_SETTINGS: AppSettings = {
 };
 
 export const StorageService = {
-  getProjects: (): Project[] => {
+
+  getProfile: async (): Promise<UserProfile> => {
     try {
-      // Check if localStorage is available
-      if (typeof Storage === 'undefined' || !window.localStorage) {
-        console.warn('localStorage not available');
-        return MOCK_PROJECTS;
-      }
-      const stored = localStorage.getItem(KEYS.PROJECTS);
-      return stored ? JSON.parse(stored) : MOCK_PROJECTS;
+      return await settingsService.getProfile();
     } catch (e) {
-      console.warn('Error accessing localStorage:', e);
-      return MOCK_PROJECTS;
+      console.warn('Error fetching profile from backend:', e);
+      // Fallback to cached or mock profile
+      const cached = settingsService.getCachedProfile();
+      return cached || MOCK_PROFILE;
     }
   },
 
-  getProjectById: (id: string): Project | undefined => {
-    const projects = StorageService.getProjects();
-    return projects.find(p => p.id === id);
-  },
-
-  saveProject: (project: Project): Project[] => {
-    const projects = StorageService.getProjects();
-    const existingIndex = projects.findIndex(p => p.id === project.id);
-
-    let updatedProjects;
-    if (existingIndex >= 0) {
-      // Merge existing artifacts if the new object doesn't have them populated
-      const existing = projects[existingIndex];
-      updatedProjects = [...projects];
-      updatedProjects[existingIndex] = {
-        ...project,
-        artifacts: project.artifacts || existing.artifacts
-      };
-    } else {
-      updatedProjects = [project, ...projects];
-    }
-
+  saveProfile: async (profile: UserProfile): Promise<void> => {
     try {
-      if (typeof Storage !== 'undefined' && window.localStorage) {
-        localStorage.setItem(KEYS.PROJECTS, JSON.stringify(updatedProjects));
-      }
+      // Only update the fields that can be changed via profile update
+      await settingsService.updateProfile({
+        archetype: profile.archetype,
+        mission: profile.mission,
+        traits: profile.traits,
+        profilePicture: profile.profilePicture
+      });
     } catch (e) {
-      console.warn('Error saving to localStorage:', e);
-    }
-    return updatedProjects;
-  },
-
-  // New method to save a specific step result
-  saveArtifact: (projectId: string, step: AgentStep, data: any) => {
-    const projects = StorageService.getProjects();
-    const index = projects.findIndex(p => p.id === projectId);
-
-    if (index >= 0) {
-      const project = projects[index];
-      if (!project.artifacts) {
-        project.artifacts = {};
-      }
-
-      // Save data to the specific step key
-      project.artifacts[step] = data;
-
-      // If it's a score, let's also update the top level validation score
-      if (step === 'SCORE' && data.total) {
-        project.validationScore = data.total;
-        if (data.total > 70) project.stage = 'Validation';
-      }
-
-      // Update timestamp
-      project.lastEdited = 'Just now';
-
-      projects[index] = project;
-      try {
-        if (typeof Storage !== 'undefined' && window.localStorage) {
-          localStorage.setItem(KEYS.PROJECTS, JSON.stringify(projects));
-        }
-      } catch (e) {
-        console.warn('Error saving artifact to localStorage:', e);
-      }
+      console.warn('Error saving profile to backend:', e);
+      // Could implement local fallback here if needed
     }
   },
 
-  getProfile: (): UserProfile => {
+  getSettings: async (): Promise<AppSettings> => {
     try {
-      if (typeof Storage === 'undefined' || !window.localStorage) {
-        return MOCK_PROFILE;
-      }
-      const stored = localStorage.getItem(KEYS.PROFILE);
-      return stored ? JSON.parse(stored) : MOCK_PROFILE;
+      return await settingsService.getSettings();
     } catch (e) {
-      console.warn('Error accessing profile from localStorage:', e);
-      return MOCK_PROFILE;
+      console.warn('Error fetching settings from backend:', e);
+      // Fallback to cached or default settings
+      const cached = settingsService.getCachedSettings();
+      return cached || DEFAULT_SETTINGS;
     }
   },
 
-  saveProfile: (profile: UserProfile) => {
+  saveSettings: async (settings: AppSettings): Promise<void> => {
     try {
-      if (typeof Storage !== 'undefined' && window.localStorage) {
-        localStorage.setItem(KEYS.PROFILE, JSON.stringify(profile));
-      }
+      await settingsService.updateSettings(settings);
     } catch (e) {
-      console.warn('Error saving profile to localStorage:', e);
-    }
-  },
-
-  getSettings: (): AppSettings => {
-    try {
-      if (typeof Storage === 'undefined' || !window.localStorage) {
-        return DEFAULT_SETTINGS;
-      }
-      const stored = localStorage.getItem(KEYS.SETTINGS);
-      return stored ? JSON.parse(stored) : DEFAULT_SETTINGS;
-    } catch (e) {
-      console.warn('Error accessing settings from localStorage:', e);
-      return DEFAULT_SETTINGS;
-    }
-  },
-
-  saveSettings: (settings: AppSettings) => {
-    try {
-      if (typeof Storage !== 'undefined' && window.localStorage) {
-        localStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings));
-      }
-    } catch (e) {
-      console.warn('Error saving settings to localStorage:', e);
+      console.warn('Error saving settings to backend:', e);
+      // Could implement local fallback here if needed
     }
   },
 
@@ -164,26 +86,8 @@ export const StorageService = {
     }
   },
 
-  // Get profile from backend and cache locally
+  // Get profile from backend (now the primary method)
   getProfileFromBackend: async (): Promise<UserProfile> => {
-    try {
-      const userData = await authService.getProfile();
-      const profile: UserProfile = {
-        name: userData.username,
-        archetype: userData.archetype || 'Visionary Architect',
-        level: userData.level || 1,
-        mission: userData.mission || '',
-        badges: userData.badges || [],
-        traits: userData.traits || [],
-        profilePicture: userData.profilePicture
-      };
-
-      // Cache locally
-      StorageService.saveProfile(profile);
-      return profile;
-    } catch (error) {
-      console.warn('Failed to get profile from backend, using localStorage:', error);
-      return StorageService.getProfile();
-    }
+    return await StorageService.getProfile();
   }
 };

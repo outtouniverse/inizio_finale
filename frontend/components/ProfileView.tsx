@@ -8,9 +8,9 @@ import MemoryGraph from './profile/MemoryGraph';
 import FounderTimeline from './profile/FounderTimeline';
 import ExecutionHeatmap from './profile/ExecutionHeatmap';
 
-const ProfileView: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+const ProfileView: React.FC<{ onClose: () => void; projects?: Project[] }> = ({ onClose, projects: initialProjects = [] }) => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [projects, setProjects] = useState<Project[]>(initialProjects);
   const [profileStats, setProfileStats] = useState<any>(null);
   const [activityData, setActivityData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -27,9 +27,8 @@ const ProfileView: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         setError(null);
 
         // Load data from multiple sources
-        const [userProfile, projectsData, stats, activity] = await Promise.all([
+        const [userProfile, stats, activity] = await Promise.all([
           authService.getProfile(),
-          StorageService.getProjects(),
           authService.getProfileStats(),
           authService.getProfileActivity()
         ]);
@@ -46,15 +45,15 @@ const ProfileView: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         };
 
         setProfile(transformedProfile);
-        setProjects(projectsData);
+        setProjects(initialProjects); // Use projects passed as props
         setProfileStats(stats);
         setActivityData(activity);
       } catch (err) {
         console.error('Failed to load profile data:', err);
         setError('Failed to load profile data');
-        // Fallback to localStorage
-        setProfile(StorageService.getProfile());
-        setProjects(StorageService.getProjects());
+        // Fallback to basic profile data
+        setProfile(await StorageService.getProfile());
+        setProjects(initialProjects); // Use projects passed as props
       } finally {
         setLoading(false);
       }

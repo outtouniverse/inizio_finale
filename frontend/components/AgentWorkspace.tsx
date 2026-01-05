@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { IdeaContext, AgentStep, AgentState, ArtifactVersion, FeedbackType, CallPersona } from '../types';
 import { runAgent, rethinkNode } from '../services/geminiService';
-import { StorageService } from '../services/storageService';
+import { projectService } from '../services/projectService';
 import { STEPS_ORDER, MOCK_PERSONAS } from '../constants';
 import { ArrowLeft, Search, ChevronLeft, ChevronRight, Maximize2, Sparkles, Zap, Lock, Mic, UserSearch, Globe } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -38,7 +38,9 @@ import UserFinder from './finder/UserFinder';
 interface Props {
   idea: IdeaContext;
   projectId: string;
+  project: any; // Full project data from backend
   onReset: () => void;
+  onProjectUpdate?: (updatedProject: any) => void; // Callback to update parent project data
 }
 
 type ViewMode = 'CONSTELLATION' | 'MODULE';
@@ -157,7 +159,7 @@ const ConstellationConnections: React.FC<{ steps: AgentStep[], completedSteps: A
   );
 };
 
-const AgentWorkspace: React.FC<Props> = ({ idea, projectId, onReset }) => {
+const AgentWorkspace: React.FC<Props> = ({ idea, projectId, project: initialProject, onReset, onProjectUpdate }) => {
   const [viewMode, setViewMode] = useState<ViewMode>('CONSTELLATION');
   const [activeStep, setActiveStep] = useState<AgentStep | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -165,7 +167,9 @@ const AgentWorkspace: React.FC<Props> = ({ idea, projectId, onReset }) => {
   const [showAudioAgent, setShowAudioAgent] = useState(false); // Legacy select screen
   const [activeLivePersona, setActiveLivePersona] = useState<CallPersona | null>(null); // Realtime
   const [showUserFinder, setShowUserFinder] = useState(false);
-  
+  const [currentProject, setCurrentProject] = useState(initialProject); // Track current project data
+  const [projectLoading, setProjectLoading] = useState(false); // Loading state for project data
+
   const [state, setState] = useState<AgentState>({
     currentStep: 'PULSE',
     history: [],
@@ -173,6 +177,30 @@ const AgentWorkspace: React.FC<Props> = ({ idea, projectId, onReset }) => {
     isThinking: false,
     versions: {}
   });
+
+  // Function to refresh project data from backend
+  const refreshProjectData = async () => {
+    setProjectLoading(true);
+    try {
+      const updatedProject = await projectService.getProject(projectId);
+      setCurrentProject(updatedProject);
+      // Notify parent component of the update
+      if (onProjectUpdate) {
+        onProjectUpdate(updatedProject);
+      }
+      return updatedProject;
+    } catch (error) {
+      console.error('Failed to refresh project data:', error);
+      return currentProject;
+    } finally {
+      setProjectLoading(false);
+    }
+  };
+
+  // Load initial project data on mount
+  useEffect(() => {
+    refreshProjectData();
+  }, [projectId]);
 
   // --- Auto-Agent Orchestration ---
   useEffect(() => {
@@ -186,8 +214,7 @@ const AgentWorkspace: React.FC<Props> = ({ idea, projectId, onReset }) => {
         
         if (state.history.includes(step)) continue;
 
-        const project = StorageService.getProjectById(projectId);
-        const storedArtifact = project?.artifacts?.[step];
+        const storedArtifact = currentProject?.metadata?.[step];
 
         if (storedArtifact) {
           setState(prev => {
@@ -219,7 +246,13 @@ const AgentWorkspace: React.FC<Props> = ({ idea, projectId, onReset }) => {
           const result = await runAgent(step, idea);
           
           if (mounted && result) {
-            StorageService.saveArtifact(projectId, step, result);
+            try {
+              await projectService.saveProjectArtifact(projectId, step, result);
+              // Refresh project data to get the latest metadata
+              await refreshProjectData();
+            } catch (error) {
+              console.warn('Failed to save artifact to backend:', error);
+            }
             setState(prev => {
               const newState: any = { ...prev, isThinking: false, history: [...prev.history, step] };
               const key = step.toLowerCase();
@@ -288,10 +321,16 @@ const AgentWorkspace: React.FC<Props> = ({ idea, projectId, onReset }) => {
     }
   };
 
-  const handleAcceptRethink = () => {
+  const handleAcceptRethink = async () => {
     if (!state.pendingRethink) return;
     const { step, variant, feedback, rationale, changes } = state.pendingRethink;
-    StorageService.saveArtifact(projectId, step, variant);
+    try {
+      await projectService.saveProjectArtifact(projectId, step, variant);
+      // Refresh project data to get the latest metadata
+      await refreshProjectData();
+    } catch (error) {
+      console.warn('Failed to save artifact to backend:', error);
+    }
     
     setState(prev => {
         const newState: any = { ...prev, pendingRethink: undefined };
@@ -320,9 +359,15 @@ const AgentWorkspace: React.FC<Props> = ({ idea, projectId, onReset }) => {
 
   const handleRejectRethink = () => setState(prev => ({ ...prev, pendingRethink: undefined }));
 
-  const handleRestoreVersion = (version: ArtifactVersion) => {
+  const handleRestoreVersion = async (version: ArtifactVersion) => {
       const step = version.step;
-      StorageService.saveArtifact(projectId, step, version.data);
+      try {
+        await projectService.saveProjectArtifact(projectId, step, version.data);
+        // Refresh project data to get the latest metadata
+        await refreshProjectData();
+      } catch (error) {
+        console.warn('Failed to save artifact to backend:', error);
+      }
       setState(prev => {
           const newState: any = { ...prev };
           let key = step.toLowerCase();

@@ -164,7 +164,9 @@ const WorkspaceRoute: React.FC<{
           <AgentWorkspace
             idea={activeIdea}
             projectId={projectId}
+            project={project}
             onReset={handleReset}
+            onProjectUpdate={handleProjectUpdate}
           />
         </Suspense>
       </Layout>
@@ -198,14 +200,8 @@ const AppContent: React.FC = () => {
   const navigate = useNavigate();
   const { isAuthenticated, logout } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
-  const [settings, setSettings] = useState<AppSettings>(() => {
-    try {
-      return StorageService.getSettings();
-    } catch (error) {
-      console.error('Error loading settings:', error);
-      return {} as AppSettings;
-    }
-  });
+  const [settings, setSettings] = useState<AppSettings>({} as AppSettings);
+  const [settingsLoading, setSettingsLoading] = useState(true);
   const [quotaModalOpen, setQuotaModalOpen] = useState(false);
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [projectsError, setProjectsError] = useState<string | null>(null);
@@ -246,10 +242,33 @@ const AppContent: React.FC = () => {
     };
   }, []);
 
-  const handleSettingsSave = (newSettings: AppSettings) => {
+  // Load settings from backend when authenticated
+  useEffect(() => {
+    const loadSettings = async () => {
+      if (isAuthenticated) {
+        setSettingsLoading(true);
+        try {
+          const loadedSettings = await StorageService.getSettings();
+          setSettings(loadedSettings);
+        } catch (error) {
+          console.error('Error loading settings:', error);
+          setSettings({} as AppSettings);
+        } finally {
+          setSettingsLoading(false);
+        }
+      } else {
+        setSettings({} as AppSettings);
+        setSettingsLoading(false);
+      }
+    };
+
+    loadSettings();
+  }, [isAuthenticated]);
+
+  const handleSettingsSave = async (newSettings: AppSettings) => {
     try {
       setSettings(newSettings);
-      StorageService.saveSettings(newSettings);
+      await StorageService.saveSettings(newSettings);
     } catch (error) {
       console.error('Error saving settings:', error);
     }
@@ -313,6 +332,12 @@ const AppContent: React.FC = () => {
       setProjects([]);
       navigate('/auth');
     }
+  };
+
+  const handleProjectUpdate = (updatedProject: any) => {
+    setProjects(prevProjects =>
+      prevProjects.map(p => p._id === updatedProject._id || p.id === updatedProject.id ? updatedProject : p)
+    );
   };
 
   const handleNav = (dest: string) => {
@@ -405,7 +430,7 @@ const AppContent: React.FC = () => {
         <Route path="/profile" element={
           <ProtectedRoute>
             <RouteWrapper showNav={true} onNavClick={handleNav} settings={settings}>
-              <ProfileView onClose={() => navigate('/vault')} />
+              <ProfileView onClose={() => navigate('/vault')} projects={projects} />
             </RouteWrapper>
           </ProtectedRoute>
         } />

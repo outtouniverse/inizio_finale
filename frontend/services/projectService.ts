@@ -158,6 +158,27 @@ class ProjectService {
   }
 
   /**
+   * Save artifact/step result to project
+   */
+  async saveProjectArtifact(projectId: string, step: string, data: any): Promise<Project> {
+    try {
+      const response = await this.request(`/projects/${projectId}/artifact`, {
+        method: 'PUT',
+        body: JSON.stringify({ step, data }),
+      });
+
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to save project artifact');
+      }
+
+      return response.data?.project!;
+    } catch (error) {
+      console.error('Save project artifact error:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Delete a project
    */
   async deleteProject(id: string): Promise<void> {
